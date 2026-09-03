@@ -1,4 +1,4 @@
-﻿import os, json, uuid, shutil
+import os, json, uuid, shutil
 from datetime import datetime
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, send_file, abort
@@ -118,6 +118,15 @@ def add_field(doc,label,value):
     p=doc.add_paragraph(); p.paragraph_format.space_after=Pt(2)
     r1=p.add_run(f"{label}: "); r1.bold=True; r1.font.size=Pt(10)
     r2=p.add_run(str(value) if value else ""); r2.font.size=Pt(10)
+def resolve_img_path(url):
+    if not url: return None
+    clean = url.lstrip("/").replace("/", os.sep)
+    p1 = BASE_DIR / clean
+    if p1.exists(): return p1
+    p2 = BASE_DIR / "static" / clean
+    if p2.exists(): return p2
+    return None
+
 def add_photo_grid(doc,photos,fid):
     if not photos: return
     for i in range(0,len(photos),2):
@@ -126,13 +135,16 @@ def add_photo_grid(doc,photos,fid):
         for ci,photo in enumerate(pair):
             ic=table.cell(0,ci); dc=table.cell(1,ci)
             url=photo.get("url","")
-            img_path=BASE_DIR/"static"/url.lstrip("/").replace("/",os.sep)
-            if img_path.exists():
+            img_path=resolve_img_path(url)
+            if img_path and img_path.exists():
                 try:
                     p=ic.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
                     p.add_run().add_picture(str(img_path),width=Inches(2.8))
-                except: ic.text="[Imagen]"
-            else: ic.text="[Imagen no disponible]"
+                except Exception as e:
+                    print("Error inserting picture:", e)
+                    ic.text="[Error al insertar imagen]"
+            else:
+                ic.text="[Imagen no disponible]"
             dc.text=photo.get("descripcion","")
         doc.add_paragraph()
 def add_subsection(doc,titulo,contenido,photos,fid):
@@ -162,12 +174,16 @@ def generar_word(data,fid):
     add_heading(doc,"Croquis de Localizacion")
     cu=data.get("croquis",None)
     if cu and cu.get("url"):
-        ip=BASE_DIR/"static"/cu["url"].lstrip("/").replace("/",os.sep)
-        if ip.exists():
+        ip=resolve_img_path(cu["url"])
+        if ip and ip.exists():
             try:
                 p=doc.add_paragraph(); p.alignment=WD_ALIGN_PARAGRAPH.CENTER
                 p.add_run().add_picture(str(ip),width=Inches(4.5))
-            except: doc.add_paragraph("[Croquis no disponible]")
+            except Exception as e:
+                print("Error inserting croquis:", e)
+                doc.add_paragraph("[Croquis no disponible]")
+        else:
+            doc.add_paragraph("[Croquis no disponible]")
     doc.add_paragraph()
     add_heading(doc,"Descripcion General")
     dgen=data.get("descripcion_general",{})
@@ -234,6 +250,7 @@ def generar_word(data,fid):
     return op
 
 if __name__=="__main__":
-    print("="*50); print("  Memoria Descriptiva - Servidor Local")
-    print("  http://localhost:5000"); print("="*50)
-    app.run(debug=False,host="0.0.0.0",port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    print("="*50); print(f"  Memoria Descriptiva - Puerto {port}")
+    print("="*50)
+    app.run(debug=False, host="0.0.0.0", port=port)
