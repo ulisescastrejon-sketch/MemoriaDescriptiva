@@ -1,0 +1,263 @@
+﻿<!DOCTYPE html><html lang="es"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Formulario - Memoria Descriptiva</title>
+<link rel="stylesheet" href="/static/css/style.css"></head><body>
+<nav class="topnav">
+  <a href="/" class="nav-logo">MD</a>
+  <span class="nav-title" id="nav-title">Memoria Descriptiva</span>
+  <a href="/admin" class="btn btn-outline btn-sm" style="color:#fff;border-color:#fff">Admin</a>
+</nav>
+<div class="form-wrap">
+  <div class="step-progress" id="step-progress"></div>
+  <form id="main-form" autocomplete="off">
+  <!-- PASO 1: DATOS GENERALES -->
+  <div class="step-panel" data-step="1">
+    <div class="card">
+      <div class="card-title">1. Datos Generales</div>
+      <div class="form-group"><label>Nombre de la Tienda / Proyecto *</label><input type="text" class="form-control" name="dg.nombre_tienda" placeholder="BODEGA AURRERA MITRAS"></div>
+      <div class="form-group"><label>Tipo de Obra *</label><input type="text" class="form-control" name="dg.tipo_obra" placeholder="TRABAJOS DE REMODELACION"></div>
+      <div class="card-title" style="margin-top:1.5rem">Ubicacion</div>
+      <div class="form-row"><div class="form-group"><label>Calle</label><input type="text" class="form-control" name="dg.calle"></div>
+      <div class="form-group"><label>Numero</label><input type="text" class="form-control" name="dg.numero"></div></div>
+      <div class="form-row"><div class="form-group"><label>Colonia</label><input type="text" class="form-control" name="dg.colonia"></div>
+      <div class="form-group"><label>Ciudad</label><input type="text" class="form-control" name="dg.ciudad"></div></div>
+      <div class="form-row"><div class="form-group"><label>Estado</label><input type="text" class="form-control" name="dg.estado_rep"></div>
+      <div class="form-group"><label>Codigo Postal</label><input type="text" class="form-control" name="dg.cp"></div></div>
+      <div class="card-title" style="margin-top:1.5rem">Superficies</div>
+      <div class="form-row3"><div class="form-group"><label>Sup. Construccion (m2)</label><input type="text" class="form-control" name="dg.sup_construccion"></div>
+      <div class="form-group"><label>Sup. a Remodelar (m2)</label><input type="text" class="form-control" name="dg.sup_remodelar"></div>
+      <div class="form-group"><label>Sup. Total del Predio (m2)</label><input type="text" class="form-control" name="dg.sup_total"></div></div>
+    </div>
+  </div>
+  <!-- PASO 2: CROQUIS -->
+  <div class="step-panel" data-step="2"><div class="card">
+    <div class="card-title">2. Croquis de Localizacion</div>
+    <p style="color:#6c757d;margin-bottom:1rem">Sube el mapa o croquis de ubicacion de la tienda.</p>
+    <div class="photo-zone" id="croquis-zone" onclick="document.getElementById('croquis-input').click()">
+      <input type="file" id="croquis-input" accept="image/*" onchange="uploadCroquis(this)">
+      <div id="croquis-preview"></div>
+      <p id="croquis-placeholder">Haz clic o arrastra una imagen aqui</p>
+    </div></div></div>
+  <!-- PASO 3: DESCRIPCION GENERAL -->
+  <div class="step-panel" data-step="3"><div class="card">
+    <div class="card-title">3. Descripcion General</div>
+    <div class="form-group"><label>Descripcion general del proyecto</label>
+      <textarea class="form-control" name="desc_general.texto" rows="5" placeholder="En esta unidad se consideran trabajos de remodelacion..."></textarea></div>
+    <div class="form-group"><label>Lista de elementos a remodelar</label>
+      <div class="list-items-area" id="lista-items"></div>
+      <button type="button" class="btn-add-item" onclick="addListItem()">+ Agregar elemento</button>
+    </div></div></div>
+  <!-- PASO 4: REMODELACION EXTERIOR -->
+  <div class="step-panel" data-step="4"><div class="card">
+    <div class="card-title">4. Remodelacion Exterior</div>
+      <div class='subsection'>
+        <div class='subsection-title'>Cubierta</div>
+        <div class='form-group'><textarea class='form-control' name='ext.cubierta.texto' rows='4' placeholder='Descripcion de Cubierta...'></textarea></div>
+        <label style='font-weight:600;font-size:.9rem;margin-bottom:.4rem;display:block'>Fotos</label>
+        <div class='photo-zone' data-section='ext.cubierta' ondragover='ev(event)' ondrop='drop(event,this)' onclick='triggerFile(this)'>
+          <input type='file' multiple accept='image/*' style='display:none' onchange='addPhotos(this)'>
+          <p>Arrastra fotos aqui o haz clic para seleccionar</p>
+        </div>
+        <div class='photo-grid' data-section='ext.cubierta'></div>
+      </div>
+      <div class='subsection'>
+        <div class='subsection-title'>Estacionamiento</div>
+        <div class='form-group'><textarea class='form-control' name='ext.estacionamiento.texto' rows='4' placeholder='Descripcion de Estacionamiento...'></textarea></div>
+        <label style='font-weight:600;font-size:.9rem;margin-bottom:.4rem;display:block'>Fotos</label>
+        <div class='photo-zone' data-section='ext.estacionamiento' ondragover='ev(event)' ondrop='drop(event,this)' onclick='triggerFile(this)'>
+          <input type='file' multiple accept='image/*' style='display:none' onchange='addPhotos(this)'>
+          <p>Arrastra fotos aqui o haz clic para seleccionar</p>
+        </div>
+        <div class='photo-grid' data-section='ext.estacionamiento'></div>
+      </div>
+      <div class='subsection'>
+        <div class='subsection-title'>Anuncio Espectacular</div>
+        <div class='form-group'><textarea class='form-control' name='ext.anuncio_espectacular.texto' rows='3' placeholder='Descripcion de Anuncio Espectacular...'></textarea></div>
+        <label style='font-weight:600;font-size:.9rem;margin-bottom:.4rem;display:block'>Fotos</label>
+        <div class='photo-zone' data-section='ext.anuncio_espectacular' ondragover='ev(event)' ondrop='drop(event,this)' onclick='triggerFile(this)'>
+          <input type='file' multiple accept='image/*' style='display:none' onchange='addPhotos(this)'>
+          <p>Arrastra fotos aqui o haz clic para seleccionar</p>
+        </div>
+        <div class='photo-grid' data-section='ext.anuncio_espectacular'></div>
+      </div>
+      <div class='subsection'>
+        <div class='subsection-title'>Fachadas</div>
+        <div class='form-group'><textarea class='form-control' name='ext.fachadas.texto' rows='3' placeholder='Descripcion de Fachadas...'></textarea></div>
+        <label style='font-weight:600;font-size:.9rem;margin-bottom:.4rem;display:block'>Fotos</label>
+        <div class='photo-zone' data-section='ext.fachadas' ondragover='ev(event)' ondrop='drop(event,this)' onclick='triggerFile(this)'>
+          <input type='file' multiple accept='image/*' style='display:none' onchange='addPhotos(this)'>
+          <p>Arrastra fotos aqui o haz clic para seleccionar</p>
+        </div>
+        <div class='photo-grid' data-section='ext.fachadas'></div>
+      </div>
+      <div class='subsection'>
+        <div class='subsection-title'>Anden</div>
+        <div class='form-group'><textarea class='form-control' name='ext.anden.texto' rows='3' placeholder='Descripcion de Anden...'></textarea></div>
+        <label style='font-weight:600;font-size:.9rem;margin-bottom:.4rem;display:block'>Fotos</label>
+        <div class='photo-zone' data-section='ext.anden' ondragover='ev(event)' ondrop='drop(event,this)' onclick='triggerFile(this)'>
+          <input type='file' multiple accept='image/*' style='display:none' onchange='addPhotos(this)'>
+          <p>Arrastra fotos aqui o haz clic para seleccionar</p>
+        </div>
+        <div class='photo-grid' data-section='ext.anden'></div>
+      </div>
+      <div class='subsection'>
+        <div class='subsection-title'>Area de Servicio</div>
+        <div class='form-group'><textarea class='form-control' name='ext.area_servicio.texto' rows='3' placeholder='Descripcion de Area de Servicio...'></textarea></div>
+        <label style='font-weight:600;font-size:.9rem;margin-bottom:.4rem;display:block'>Fotos</label>
+        <div class='photo-zone' data-section='ext.area_servicio' ondragover='ev(event)' ondrop='drop(event,this)' onclick='triggerFile(this)'>
+          <input type='file' multiple accept='image/*' style='display:none' onchange='addPhotos(this)'>
+          <p>Arrastra fotos aqui o haz clic para seleccionar</p>
+        </div>
+        <div class='photo-grid' data-section='ext.area_servicio'></div>
+      </div>
+  </div></div>
+  <!-- PASO 5: REMODELACION INTERIORES -->
+  <div class="step-panel" data-step="5"><div class="card">
+    <div class="card-title">5. Remodelacion Interiores</div>
+      <div class='subsection'>
+        <div class='subsection-title'>Portico de Acceso y Salida</div>
+        <div class='form-group'><textarea class='form-control' name='int.portico_acceso.texto' rows='4' placeholder='Descripcion de Portico de Acceso y Salida...'></textarea></div>
+        <div class='photo-zone' data-section='int.portico_acceso' ondragover='ev(event)' ondrop='drop(event,this)' onclick='triggerFile(this)'>
+          <input type='file' multiple accept='image/*' style='display:none' onchange='addPhotos(this)'>
+          <p>Arrastra fotos aqui o haz clic para seleccionar</p>
+        </div>
+        <div class='photo-grid' data-section='int.portico_acceso'></div>
+      </div>
+      <div class='subsection'>
+        <div class='subsection-title'>Oficinas Frontales</div>
+        <div class='form-group'><textarea class='form-control' name='int.oficinas_frontales.texto' rows='4' placeholder='Descripcion de Oficinas Frontales...'></textarea></div>
+        <div class='photo-zone' data-section='int.oficinas_frontales' ondragover='ev(event)' ondrop='drop(event,this)' onclick='triggerFile(this)'>
+          <input type='file' multiple accept='image/*' style='display:none' onchange='addPhotos(this)'>
+          <p>Arrastra fotos aqui o haz clic para seleccionar</p>
+        </div>
+        <div class='photo-grid' data-section='int.oficinas_frontales'></div>
+      </div>
+      <div class='subsection'>
+        <div class='subsection-title'>Sanitarios Clientes</div>
+        <div class='form-group'><textarea class='form-control' name='int.sanitarios_clientes.texto' rows='4' placeholder='Descripcion de Sanitarios Clientes...'></textarea></div>
+        <div class='photo-zone' data-section='int.sanitarios_clientes' ondragover='ev(event)' ondrop='drop(event,this)' onclick='triggerFile(this)'>
+          <input type='file' multiple accept='image/*' style='display:none' onchange='addPhotos(this)'>
+          <p>Arrastra fotos aqui o haz clic para seleccionar</p>
+        </div>
+        <div class='photo-grid' data-section='int.sanitarios_clientes'></div>
+      </div>
+      <div class='subsection'>
+        <div class='subsection-title'>Piso de Ventas</div>
+        <div class='form-group'><textarea class='form-control' name='int.piso_ventas.texto' rows='4' placeholder='Descripcion de Piso de Ventas...'></textarea></div>
+        <div class='photo-zone' data-section='int.piso_ventas' ondragover='ev(event)' ondrop='drop(event,this)' onclick='triggerFile(this)'>
+          <input type='file' multiple accept='image/*' style='display:none' onchange='addPhotos(this)'>
+          <p>Arrastra fotos aqui o haz clic para seleccionar</p>
+        </div>
+        <div class='photo-grid' data-section='int.piso_ventas'></div>
+      </div>
+      <div class='subsection'>
+        <div class='subsection-title'>Area de Perecederos</div>
+        <div class='form-group'><textarea class='form-control' name='int.area_perecederos.texto' rows='4' placeholder='Descripcion de Area de Perecederos...'></textarea></div>
+        <div class='photo-zone' data-section='int.area_perecederos' ondragover='ev(event)' ondrop='drop(event,this)' onclick='triggerFile(this)'>
+          <input type='file' multiple accept='image/*' style='display:none' onchange='addPhotos(this)'>
+          <p>Arrastra fotos aqui o haz clic para seleccionar</p>
+        </div>
+        <div class='photo-grid' data-section='int.area_perecederos'></div>
+      </div>
+      <div class='subsection'>
+        <div class='subsection-title'>Comedor de Asociados</div>
+        <div class='form-group'><textarea class='form-control' name='int.comedor_asociados.texto' rows='4' placeholder='Descripcion de Comedor de Asociados...'></textarea></div>
+        <div class='photo-zone' data-section='int.comedor_asociados' ondragover='ev(event)' ondrop='drop(event,this)' onclick='triggerFile(this)'>
+          <input type='file' multiple accept='image/*' style='display:none' onchange='addPhotos(this)'>
+          <p>Arrastra fotos aqui o haz clic para seleccionar</p>
+        </div>
+        <div class='photo-grid' data-section='int.comedor_asociados'></div>
+      </div>
+      <div class='subsection'>
+        <div class='subsection-title'>Oficinas Posteriores</div>
+        <div class='form-group'><textarea class='form-control' name='int.oficinas_posteriores.texto' rows='4' placeholder='Descripcion de Oficinas Posteriores...'></textarea></div>
+        <div class='photo-zone' data-section='int.oficinas_posteriores' ondragover='ev(event)' ondrop='drop(event,this)' onclick='triggerFile(this)'>
+          <input type='file' multiple accept='image/*' style='display:none' onchange='addPhotos(this)'>
+          <p>Arrastra fotos aqui o haz clic para seleccionar</p>
+        </div>
+        <div class='photo-grid' data-section='int.oficinas_posteriores'></div>
+      </div>
+      <div class='subsection'>
+        <div class='subsection-title'>Sanitarios de Asociados</div>
+        <div class='form-group'><textarea class='form-control' name='int.sanitarios_asociados.texto' rows='4' placeholder='Descripcion de Sanitarios de Asociados...'></textarea></div>
+        <div class='photo-zone' data-section='int.sanitarios_asociados' ondragover='ev(event)' ondrop='drop(event,this)' onclick='triggerFile(this)'>
+          <input type='file' multiple accept='image/*' style='display:none' onchange='addPhotos(this)'>
+          <p>Arrastra fotos aqui o haz clic para seleccionar</p>
+        </div>
+        <div class='photo-grid' data-section='int.sanitarios_asociados'></div>
+      </div>
+      <div class='subsection'>
+        <div class='subsection-title'>Acceso de Personal y Mercancia</div>
+        <div class='form-group'><textarea class='form-control' name='int.acceso_personal.texto' rows='4' placeholder='Descripcion de Acceso de Personal y Mercancia...'></textarea></div>
+        <div class='photo-zone' data-section='int.acceso_personal' ondragover='ev(event)' ondrop='drop(event,this)' onclick='triggerFile(this)'>
+          <input type='file' multiple accept='image/*' style='display:none' onchange='addPhotos(this)'>
+          <p>Arrastra fotos aqui o haz clic para seleccionar</p>
+        </div>
+        <div class='photo-grid' data-section='int.acceso_personal'></div>
+      </div>
+      <div class='subsection'>
+        <div class='subsection-title'>Facturacion y Sistemas</div>
+        <div class='form-group'><textarea class='form-control' name='int.facturacion_sistemas.texto' rows='4' placeholder='Descripcion de Facturacion y Sistemas...'></textarea></div>
+        <div class='photo-zone' data-section='int.facturacion_sistemas' ondragover='ev(event)' ondrop='drop(event,this)' onclick='triggerFile(this)'>
+          <input type='file' multiple accept='image/*' style='display:none' onchange='addPhotos(this)'>
+          <p>Arrastra fotos aqui o haz clic para seleccionar</p>
+        </div>
+        <div class='photo-grid' data-section='int.facturacion_sistemas'></div>
+      </div>
+      <div class='subsection'>
+        <div class='subsection-title'>Trastienda</div>
+        <div class='form-group'><textarea class='form-control' name='int.trastienda.texto' rows='4' placeholder='Descripcion de Trastienda...'></textarea></div>
+        <div class='photo-zone' data-section='int.trastienda' ondragover='ev(event)' ondrop='drop(event,this)' onclick='triggerFile(this)'>
+          <input type='file' multiple accept='image/*' style='display:none' onchange='addPhotos(this)'>
+          <p>Arrastra fotos aqui o haz clic para seleccionar</p>
+        </div>
+        <div class='photo-grid' data-section='int.trastienda'></div>
+      </div>
+  </div></div>
+  <!-- PASO 6 -->
+  <div class="step-panel" data-step="6"><div class="card"><div class="card-title">6. Giros de Negocio</div>
+    <div class="subsection"><div class="subsection-title">Consultorio Medico</div>
+    <textarea class="form-control" name="giros.consultorio_medico" rows="5" placeholder="Descripcion del consultorio medico..."></textarea>
+    </div></div></div>
+  <!-- PASO 7 -->
+  <div class="step-panel" data-step="7"><div class="card"><div class="card-title">7. Descripcion de los Trabajos</div>
+    <div class="form-group"><label>Descripcion general</label><textarea class="form-control" name="trabajos.texto" rows="6"></textarea></div>
+    <div class="form-group"><label>Area de Trabajo</label><input type="text" class="form-control" name="trabajos.area_trabajo" placeholder="Los trabajos se realizaran en..."></div>
+    <div class="form-group"><label>Afectacion en Elementos Estructurales</label><input type="text" class="form-control" name="trabajos.afectacion_estructural"></div>
+  </div></div>
+  <!-- PASO 8 -->
+  <div class="step-panel" data-step="8"><div class="card"><div class="card-title">8. Estructura</div>
+    <div class="form-group"><textarea class="form-control" name="estructura.texto" rows="8" placeholder="Descripcion de la estructura..."></textarea></div>
+  </div></div>
+  <!-- PASO 9 -->
+  <div class="step-panel" data-step="9"><div class="card"><div class="card-title">9. Instalaciones</div>
+    <div class='subsection'><div class='subsection-title'>Sistema de Refrigeracion</div><textarea class='form-control' name='inst.refrigeracion' rows='4'></textarea></div>
+    <div class='subsection'><div class='subsection-title'>Sistema de Aire</div><textarea class='form-control' name='inst.aire' rows='4'></textarea></div>
+    <div class='subsection'><div class='subsection-title'>Instalacion Electrica</div><textarea class='form-control' name='inst.electrica' rows='4'></textarea></div>
+    <div class='subsection'><div class='subsection-title'>Instalacion Hidro-Sanitaria</div><textarea class='form-control' name='inst.hidro_sanitaria' rows='4'></textarea></div>
+    <div class='subsection'><div class='subsection-title'>Instalacion de Gas</div><textarea class='form-control' name='inst.gas' rows='4'></textarea></div>
+    <div class='subsection'><div class='subsection-title'>Sistema de Filtrado</div><textarea class='form-control' name='inst.filtrado' rows='4'></textarea></div>
+    <div class='subsection'><div class='subsection-title'>Instalacion Contra Incendio</div><textarea class='form-control' name='inst.contra_incendio' rows='4'></textarea></div>
+  </div></div>
+  <!-- PASO 10 -->
+  <div class="step-panel" data-step="10"><div class="card"><div class="card-title">10. Medidas de Seguridad</div>
+    <div class="form-group"><label>Descripcion general</label><textarea class="form-control" name="seg.texto" rows="5"></textarea></div>
+    <div class="form-group"><label>Medidas para Clientes y Asociados</label><textarea class="form-control" name="seg.medidas_clientes" rows="4"></textarea></div>
+    <div class="form-group"><label>Consideraciones Adicionales</label><textarea class="form-control" name="seg.consideraciones" rows="4"></textarea></div>
+  </div>
+  <div class="card" style="text-align:center;padding:2rem">
+    <p style="margin-bottom:1rem;color:#495057">Todo listo. Genera el documento Word cuando hayas completado todos los campos.</p>
+    <button type="button" class="btn btn-success btn-lg" onclick="generateWord()">&#128196; Generar Word</button>
+    <div id="gen-status" style="margin-top:1rem"></div>
+  </div>
+  </div>
+  </form>
+  <div class="form-nav">
+    <button type="button" class="btn btn-outline" id="btn-prev" onclick="prevStep()">&#8592; Anterior</button>
+    <button type="button" class="btn btn-primary" id="btn-next" onclick="nextStep()">Siguiente &#8594;</button>
+  </div>
+</div>
+<div class="saving-indicator" id="saving-ind">Guardando...</div>
+<script>const FORM_ID = "{{ form_id }}";</script>
+<script src="/static/js/form.js"></script>
+</body></html>
