@@ -1,0 +1,41 @@
+﻿<!DOCTYPE html><html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin - Memoria Descriptiva</title>
+<link rel="stylesheet" href="/static/css/style.css"></head><body>
+<nav class="topnav">
+  <a href="/" class="nav-logo">MD</a>
+  <span class="nav-title">Panel de Administrador</span>
+  <a href="/nuevo" class="btn btn-primary btn-sm">+ Nuevo</a>
+</nav>
+<div class="container"><h2>Formularios enviados</h2>
+{% if forms %}
+<table class="table"><thead><tr><th>Tienda</th><th>Tipo de Obra</th><th>Ciudad</th><th>Estado</th><th>Ultima actualizacion</th><th>Acciones</th></tr></thead><tbody>
+{% for f in forms %}
+<tr>
+  <td><strong>{{ f.nombre }}</strong></td>
+  <td>{{ f.tipo_obra }}</td>
+  <td>{{ f.ciudad }}</td>
+  <td><span class="badge badge-{{ f.estado }}">{{ f.estado }}</span></td>
+  <td>{{ f.updated_at[:16]|replace("T"," ") if f.updated_at else "" }}</td>
+  <td style="display:flex;gap:.4rem;flex-wrap:wrap">
+    <a href="/editar/{{ f.id }}" class="btn btn-sm btn-outline">Editar</a>
+    {% if f.estado == "completado" %}
+    <a href="/api/descargar/{{ f.id }}" class="btn btn-sm btn-success">&#8595; Word</a>
+    {% endif %}
+    <button data-id="{{ f.id }}" onclick="delForm(this)" class="btn btn-sm btn-danger">Eliminar</button>
+  </td>
+</tr>
+{% endfor %}
+</tbody></table>
+{% else %}
+<div class="empty-state"><p>No hay formularios aun.</p><a href="/nuevo" class="btn btn-primary">Crear el primero</a></div>
+{% endif %}
+</div>
+<script>
+function delForm(btn){
+  var id=btn.getAttribute("data-id");
+  if(!confirm("Eliminar este formulario permanentemente?"))return;
+  fetch("/api/form/"+id,{method:"DELETE"}).then(function(){location.reload();});
+}
+</script>
+</body></html>
