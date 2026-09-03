@@ -1,0 +1,12 @@
+﻿__pycache__/
+*.pyc
+data/*.json
+!data/.gitkeep
+output/*.docx
+!output/.gitkeep
+static/uploads/*
+!static/uploads/.gitkeep
+.vscode/
+.idea/
+venv/
+env/
