@@ -1,4 +1,4 @@
-import os, json, uuid, shutil
+﻿import os, json, uuid, shutil
 from datetime import datetime
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify, send_file, abort
@@ -6,6 +6,9 @@ from werkzeug.utils import secure_filename
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.oxml import parse_xml, OxmlElement
+from docx.oxml.ns import nsdecls, qn
 
 BASE_DIR   = Path(__file__).parent
 DATA_DIR   = BASE_DIR / "data"
@@ -19,37 +22,47 @@ app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
 app.secret_key = "memoria-descriptiva-2024"
 
 def allowed(f): return "." in f and f.rsplit(".",1)[1].lower() in ALLOWED
+
 def load_form(fid):
     p = DATA_DIR / f"{fid}.json"
     if not p.exists(): return None
     return json.load(open(p, encoding="utf-8"))
+
 def save_form(fid, data):
     data["updated_at"] = datetime.now().isoformat()
     json.dump(data, open(DATA_DIR/f"{fid}.json","w",encoding="utf-8"), ensure_ascii=False, indent=2)
+
 def list_forms():
     forms=[]
     for p in sorted(DATA_DIR.glob("*.json"),key=os.path.getmtime,reverse=True):
         try:
             d=json.load(open(p,encoding="utf-8"))
-            forms.append({"id":p.stem,"nombre":d.get("datos_generales",{}).get("nombre_tienda","Sin nombre"),
-                "tipo_obra":d.get("datos_generales",{}).get("tipo_obra",""),
-                "ciudad":d.get("datos_generales",{}).get("ciudad",""),
-                "estado":d.get("estado","borrador"),"updated_at":d.get("updated_at","")})
+            forms.append({
+                "id": p.stem,
+                "nombre": d.get("datos_generales",{}).get("nombre_tienda","Sin nombre"),
+                "tipo_obra": d.get("datos_generales",{}).get("tipo_obra",""),
+                "ciudad": d.get("datos_generales",{}).get("ciudad",""),
+                "estado": d.get("estado","borrador"),
+                "updated_at": d.get("updated_at","")
+            })
         except: pass
     return forms
 
 @app.route("/")
 def index(): return render_template("index.html")
+
 @app.route("/nuevo")
 def nuevo():
     fid=str(uuid.uuid4())
     save_form(fid,{"id":fid,"estado":"borrador","created_at":datetime.now().isoformat()})
     return render_template("formulario.html", form_id=fid)
+
 @app.route("/editar/<fid>")
 def editar(fid):
     d=load_form(fid)
     if d is None: abort(404)
     return render_template("formulario.html", form_id=fid)
+
 @app.route("/admin")
 def admin(): return render_template("admin.html", forms=list_forms())
 
@@ -58,6 +71,7 @@ def api_get(fid):
     d=load_form(fid)
     if d is None: return jsonify({"error":"No encontrado"}),404
     return jsonify(d)
+
 @app.route("/api/form/<fid>", methods=["POST"])
 def api_save(fid):
     d=load_form(fid) or {"id":fid,"created_at":datetime.now().isoformat()}
@@ -65,6 +79,7 @@ def api_save(fid):
     d.update(payload)
     save_form(fid,d)
     return jsonify({"ok":True})
+
 @app.route("/api/form/<fid>", methods=["DELETE"])
 def api_delete(fid):
     p=DATA_DIR/f"{fid}.json"
@@ -72,6 +87,7 @@ def api_delete(fid):
     up=UPLOAD_DIR/fid
     if up.exists(): shutil.rmtree(up)
     return jsonify({"ok":True})
+
 @app.route("/api/upload/<fid>", methods=["POST"])
 def api_upload(fid):
     if "file" not in request.files: return jsonify({"error":"No file"}),400
@@ -82,11 +98,13 @@ def api_upload(fid):
     fname=f"{uuid.uuid4()}.{ext}"
     file.save(dest/fname)
     return jsonify({"url":f"/static/uploads/{fid}/{fname}","filename":fname})
+
 @app.route("/api/upload/<fid>/<fname>", methods=["DELETE"])
 def api_del_photo(fid,fname):
     fp=UPLOAD_DIR/fid/secure_filename(fname)
     if fp.exists(): fp.unlink()
     return jsonify({"ok":True})
+
 @app.route("/api/generar/<fid>", methods=["POST"])
 def api_generar(fid):
     d=load_form(fid)
@@ -99,6 +117,7 @@ def api_generar(fid):
     except Exception as e:
         import traceback
         return jsonify({"error":str(e),"trace":traceback.format_exc()}),500
+
 @app.route("/api/descargar/<fid>")
 def api_descargar(fid):
     d=load_form(fid)
@@ -109,17 +128,13 @@ def api_descargar(fid):
     return send_file(p,as_attachment=True,download_name=secure_filename(f"MEMORIA-{nombre}.docx"))
 
 # ---- Word generator helpers ----
-from docx.enum.table import WD_TABLE_ALIGNMENT
-from docx.oxml import parse_xml, OxmlElement
-from docx.oxml.ns import nsdecls, qn
-
 def set_cell_margins(cell, top=80, bottom=80, left=100, right=100):
     tcPr = cell._tc.get_or_add_tcPr()
-    tcMar = OxmlElement('w:tcMar')
-    for m, val in [('w:top', top), ('w:bottom', bottom), ('w:left', left), ('w:right', right)]:
+    tcMar = OxmlElement("w:tcMar")
+    for m, val in [("w:top", top), ("w:bottom", bottom), ("w:left", left), ("w:right", right)]:
         node = OxmlElement(m)
-        node.set(qn('w:w'), str(val))
-        node.set(qn('w:type'), 'dxa')
+        node.set(qn("w:w"), str(val))
+        node.set(qn("w:type"), "dxa")
         tcMar.append(node)
     tcPr.append(tcMar)
 
@@ -134,12 +149,12 @@ def resolve_img_path(url):
 
 def add_banner(doc, text):
     p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(12)
+    p.paragraph_format.space_before = Pt(14)
     p.paragraph_format.space_after = Pt(4)
-    shd = parse_xml(r'<w:shd {} w:fill="595959"/>'.format(nsdecls('w')))
+    shd = parse_xml(r'<w:shd {} w:fill="595959"/>'.format(nsdecls("w")))
     p._p.get_or_add_pPr().append(shd)
     r = p.add_run(f"  {text.upper()}  ")
-    r.font.name = 'Arial'
+    r.font.name = "Arial"
     r.font.size = Pt(9.5)
     r.font.bold = True
     r.font.color.rgb = RGBColor(255, 255, 255)
@@ -150,8 +165,8 @@ def add_subtitle(doc, text):
     p.paragraph_format.space_before = Pt(6)
     p.paragraph_format.space_after = Pt(2)
     p.paragraph_format.line_spacing = 1.0
-    r = p.add_run(text)
-    r.font.name = 'Arial'
+    r = p.add_run(f"➤  {text}")
+    r.font.name = "Arial"
     r.font.size = Pt(9.0)
     r.font.bold = True
     return p
@@ -164,7 +179,7 @@ def add_body_p(doc, text, bold=False, space_after=2, align=WD_ALIGN_PARAGRAPH.JU
     p.paragraph_format.space_after = Pt(space_after)
     p.paragraph_format.line_spacing = 1.0
     r = p.add_run(str(text).strip())
-    r.font.name = 'Arial'
+    r.font.name = "Arial"
     r.font.size = Pt(9.0)
     r.bold = bold
     return p
@@ -175,11 +190,11 @@ def add_field(doc, label, value):
     p.paragraph_format.space_after = Pt(2)
     p.paragraph_format.line_spacing = 1.0
     r1 = p.add_run(f"{label}: ")
-    r1.font.name = 'Arial'
+    r1.font.name = "Arial"
     r1.font.size = Pt(9.0)
-    r1.bold = True
+    r1.font.bold = True
     r2 = p.add_run(str(value) if value else "")
-    r2.font.name = 'Arial'
+    r2.font.name = "Arial"
     r2.font.size = Pt(9.0)
     return p
 
@@ -199,9 +214,9 @@ def add_photo_grid(doc, photos, fid, photo_counter_start=1):
             r'  <w:bottom w:val="single" w:sz="6" w:space="0" w:color="000000"/>'
             r'  <w:left w:val="single" w:sz="6" w:space="0" w:color="000000"/>'
             r'  <w:right w:val="single" w:sz="6" w:space="0" w:color="000000"/>'
-            r'  <w:insideH w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>'
-            r'  <w:insideV w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>'
-            r'</w:tblBorders>'.format(nsdecls('w'))
+            r'  <w:insideH w:val="single" w:sz="4" w:space="0" w:color="808080"/>'
+            r'  <w:insideV w:val="single" w:sz="4" w:space="0" w:color="808080"/>'
+            r'</w:tblBorders>'.format(nsdecls("w"))
         )
         tblPr.append(borders)
         
@@ -213,8 +228,8 @@ def add_photo_grid(doc, photos, fid, photo_counter_start=1):
         for ci in range(2):
             ic = table.cell(0, ci)
             dc = table.cell(1, ci)
-            set_cell_margins(ic, 80, 80, 100, 100)
-            set_cell_margins(dc, 80, 80, 100, 100)
+            set_cell_margins(ic, 60, 60, 80, 80)
+            set_cell_margins(dc, 60, 60, 80, 80)
             
             if ci < len(pair):
                 photo = pair[ci]
@@ -231,7 +246,7 @@ def add_photo_grid(doc, photos, fid, photo_counter_start=1):
                         print("Error inserting picture:", e)
                         ic.text = "[Error al insertar imagen]"
                 else:
-                    ic.text = "[Imagen no disponible]"
+                    ic.text = ""
                 
                 desc = photo.get("descripcion", "").strip()
                 p_desc = dc.paragraphs[0]
@@ -269,26 +284,36 @@ def generar_word(data, fid):
         s.left_margin = Cm(1.50)
         s.right_margin = Cm(2.34)
     
-    style_normal = doc.styles['Normal']
-    style_normal.font.name = 'Arial'
+    style_normal = doc.styles["Normal"]
+    style_normal.font.name = "Arial"
     style_normal.font.size = Pt(9.0)
     
-    # 1. Top Logo Walmart
-    logo_path = BASE_DIR / "static" / "img" / "walmart_logo.png"
+    # ==================== PAGE 1 ====================
+    # 1. Top Logo Bodega Aurrera
+    logo_path = BASE_DIR / "static" / "img" / "bodega_aurrera_logo.png"
+    if not logo_path.exists():
+        logo_path = BASE_DIR / "static" / "img" / "walmart_logo.png"
     if logo_path.exists():
         lp = doc.add_paragraph()
         lp.alignment = WD_ALIGN_PARAGRAPH.CENTER
         lp.paragraph_format.space_before = Pt(0)
-        lp.paragraph_format.space_after = Pt(4)
-        lp.add_run().add_picture(str(logo_path), width=Inches(3.8))
+        lp.paragraph_format.space_after = Pt(6)
+        lp.add_run().add_picture(str(logo_path), width=Inches(3.3))
+        
+        # Horizontal line under logo
+        p_hr = doc.add_paragraph()
+        p_hr.paragraph_format.space_before = Pt(0)
+        p_hr.paragraph_format.space_after = Pt(8)
+        pBdr = parse_xml(r'<w:pBdr {}><w:bottom w:val="single" w:sz="6" w:space="1" w:color="000000"/></w:pBdr>'.format(nsdecls("w")))
+        p_hr._p.get_or_add_pPr().append(pBdr)
     
     # 2. Store Title
     dg = data.get("datos_generales", {})
     tp = doc.add_paragraph()
     tp.alignment = WD_ALIGN_PARAGRAPH.CENTER
     tp.paragraph_format.space_before = Pt(4)
-    tp.paragraph_format.space_after = Pt(10)
-    store_name = dg.get("nombre_tienda", "").strip() or "MEMORIA DESCRIPTIVA"
+    tp.paragraph_format.space_after = Pt(12)
+    store_name = dg.get("nombre_tienda", "").strip() or "MITRAS DET. 2738"
     if not store_name.upper().startswith("BODEGA") and not store_name.upper().startswith("WALMART") and not store_name.upper().startswith("SAM"):
         title_text = f"BODEGA AURRERA “{store_name.upper()}”"
     else:
@@ -299,7 +324,7 @@ def generar_word(data, fid):
     r_title.font.bold = True
     r_title.font.color.rgb = RGBColor(0, 0, 255)
 
-    # 3. Section: Datos Generales
+    # 3. Datos Generales
     tipo_obra = dg.get("tipo_obra", "").strip() or "TRABAJOS DE REMODELACIÓN."
     p_to = doc.add_paragraph()
     p_to.paragraph_format.space_before = Pt(2)
@@ -334,22 +359,22 @@ def generar_word(data, fid):
 
     p_edo = doc.add_paragraph()
     p_edo.paragraph_format.space_before = Pt(0)
-    p_edo.paragraph_format.space_after = Pt(4)
+    p_edo.paragraph_format.space_after = Pt(6)
     r3 = p_edo.add_run(f"   Estado:   {edo}\t\t\tCP.        {cp}")
     r3.font.name = "Arial"
     r3.font.size = Pt(9.0)
     r3.font.bold = True
 
-    for label, key in [
-        ("SUPERFICIE DE CONSTRUCCIÓN", "sup_construccion"),
-        ("SUPERFICIE A REMODELAR", "sup_remodelar"),
-        ("SUPERFICIE TOTAL DEL PREDIO", "sup_total")
+    for label, key, dashes in [
+        ("SUPERFICIE DE CONSTRUCCIÓN", "sup_construccion", "----------------- "),
+        ("SUPERFICIE A REMODELAR", "sup_remodelar", "------------------------- "),
+        ("SUPERFICIE TOTAL DEL PREDIO", "sup_total", "------------------ ")
     ]:
         val = dg.get(key, "").strip()
         p_sup = doc.add_paragraph()
         p_sup.paragraph_format.space_before = Pt(0)
         p_sup.paragraph_format.space_after = Pt(2)
-        r_lbl = p_sup.add_run(f"{label}: ----------------- ")
+        r_lbl = p_sup.add_run(f"{label}: {dashes}")
         r_lbl.font.name = "Arial"
         r_lbl.font.size = Pt(9.0)
         r_lbl.font.bold = True
@@ -361,7 +386,7 @@ def generar_word(data, fid):
 
     # 4. Croquis de Localización
     p_cr = doc.add_paragraph()
-    p_cr.paragraph_format.space_before = Pt(4)
+    p_cr.paragraph_format.space_before = Pt(6)
     p_cr.paragraph_format.space_after = Pt(4)
     r_cr = p_cr.add_run("CROQUIS DE LOCALIZACIÓN:")
     r_cr.font.name = "Arial"
@@ -376,61 +401,77 @@ def generar_word(data, fid):
                 t_cr = doc.add_table(rows=1, cols=1)
                 t_cr.alignment = WD_TABLE_ALIGNMENT.CENTER
                 tblPr = t_cr._tbl.tblPr
-                borders = parse_xml(r'<w:tblBorders {} ><w:top w:val="single" w:sz="6" w:space="0" w:color="000000"/><w:bottom w:val="single" w:sz="6" w:space="0" w:color="000000"/><w:left w:val="single" w:sz="6" w:space="0" w:color="000000"/><w:right w:val="single" w:sz="6" w:space="0" w:color="000000"/></w:tblBorders>'.format(nsdecls('w')))
+                borders = parse_xml(r'<w:tblBorders {} ><w:top w:val="single" w:sz="6" w:space="0" w:color="000000"/><w:bottom w:val="single" w:sz="6" w:space="0" w:color="000000"/><w:left w:val="single" w:sz="6" w:space="0" w:color="000000"/><w:right w:val="single" w:sz="6" w:space="0" w:color="000000"/></w:tblBorders>'.format(nsdecls("w")))
                 tblPr.append(borders)
                 cell_cr = t_cr.cell(0, 0)
                 cell_cr.width = Cm(17.7)
-                set_cell_margins(cell_cr, 80, 80, 80, 80)
+                set_cell_margins(cell_cr, 40, 40, 40, 40)
                 p_c = cell_cr.paragraphs[0]
                 p_c.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                p_c.add_run().add_picture(str(ip), width=Inches(5.5))
+                p_c.add_run().add_picture(str(ip), width=Inches(5.6))
+                
+                # Caption below croquis
+                p_cap = doc.add_paragraph()
+                p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                p_cap.paragraph_format.space_before = Pt(2)
+                p_cap.paragraph_format.space_after = Pt(2)
+                r_cap = p_cap.add_run(f"• BA-{store_name}")
+                r_cap.font.name = "Arial"
+                r_cap.font.size = Pt(9.0)
+                r_cap.font.bold = True
             except Exception as e:
                 print("Error inserting croquis:", e)
-                add_body_p(doc, "[Croquis no disponible]")
-        else:
-            add_body_p(doc, "[Croquis no disponible]")
 
+    # Page Break after Page 1
+    doc.add_page_break()
+
+    # ==================== PAGE 2 & ONWARD ====================
     # 5. Descripción General
-    add_banner(doc, "DESCRIPCIÓN GENERAL")
     dgen = data.get("descripcion_general", {})
-    if dgen.get("texto"):
-        add_body_p(doc, dgen["texto"], space_after=4)
-    for item in dgen.get("lista_items", []):
-        if item and item.strip():
-            p_it = doc.add_paragraph(style="List Bullet")
+    txt_gen = dgen.get("texto", "").strip()
+    items_gen = [it for it in dgen.get("lista_items", []) if it and it.strip()]
+    if txt_gen or items_gen:
+        add_banner(doc, "DESCRIPCIÓN GENERAL")
+        if txt_gen:
+            add_body_p(doc, txt_gen, space_after=4)
+        for item in items_gen:
+            p_it = doc.add_paragraph()
             p_it.paragraph_format.space_before = Pt(0)
             p_it.paragraph_format.space_after = Pt(2)
-            r_it = p_it.add_run(item.strip())
+            p_it.paragraph_format.line_spacing = 1.0
+            r_it = p_it.add_run(f"➤  {item.strip()}")
             r_it.font.name = "Arial"
             r_it.font.size = Pt(9.0)
 
     photo_num = 1
 
     # 6. Remodelación Exterior
-    add_banner(doc, "DESCRIPCIÓN REMODELACIÓN EXTERIOR:")
     ext = data.get("remodelacion_exterior", {})
-    for key, lbl in [
+    ext_keys = [
         ("cubierta", "Cubierta:"),
         ("estacionamiento", "Estacionamiento:"),
         ("anuncio_espectacular", "Anuncio Espectacular:"),
         ("fachadas", "Fachadas:"),
         ("anden", "Andén:"),
         ("area_servicio", "Área de Servicio:")
-    ]:
-        s = ext.get(key, {})
-        txt = s.get("texto", "").strip()
-        fotos = s.get("fotos", [])
-        if txt or fotos:
-            add_subtitle(doc, lbl)
-            if txt:
-                add_body_p(doc, txt, space_after=4)
-            if fotos:
-                photo_num = add_photo_grid(doc, fotos, fid, photo_counter_start=photo_num)
+    ]
+    has_ext = any(ext.get(k, {}).get("texto", "").strip() or ext.get(k, {}).get("fotos", []) for k, _ in ext_keys)
+    if has_ext:
+        add_banner(doc, "DESCRIPCIÓN REMODELACIÓN EXTERIOR:")
+        for key, lbl in ext_keys:
+            s = ext.get(key, {})
+            txt = s.get("texto", "").strip()
+            fotos = s.get("fotos", [])
+            if txt or fotos:
+                add_subtitle(doc, lbl)
+                if txt:
+                    add_body_p(doc, txt, space_after=4)
+                if fotos:
+                    photo_num = add_photo_grid(doc, fotos, fid, photo_counter_start=photo_num)
 
     # 7. Remodelación Interiores
-    add_banner(doc, "DESCRIPCIÓN REMODELACIÓN INTERIORES:")
     intr = data.get("remodelacion_interiores", {})
-    for key, lbl in [
+    int_keys = [
         ("portico_acceso", "Pórtico de Acceso y Salida:"),
         ("oficinas_frontales", "Oficinas Frontales:"),
         ("sanitarios_clientes", "Sanitarios Clientes:"),
@@ -442,16 +483,20 @@ def generar_word(data, fid):
         ("acceso_personal", "Acceso de Personal y de Mercancía:"),
         ("facturacion_sistemas", "Facturación y Sistemas:"),
         ("trastienda", "Trastienda:")
-    ]:
-        s = intr.get(key, {})
-        txt = s.get("texto", "").strip()
-        fotos = s.get("fotos", [])
-        if txt or fotos:
-            add_subtitle(doc, lbl)
-            if txt:
-                add_body_p(doc, txt, space_after=4)
-            if fotos:
-                photo_num = add_photo_grid(doc, fotos, fid, photo_counter_start=photo_num)
+    ]
+    has_int = any(intr.get(k, {}).get("texto", "").strip() or intr.get(k, {}).get("fotos", []) for k, _ in int_keys)
+    if has_int:
+        add_banner(doc, "DESCRIPCIÓN REMODELACIÓN INTERIORES:")
+        for key, lbl in int_keys:
+            s = intr.get(key, {})
+            txt = s.get("texto", "").strip()
+            fotos = s.get("fotos", [])
+            if txt or fotos:
+                add_subtitle(doc, lbl)
+                if txt:
+                    add_body_p(doc, txt, space_after=4)
+                if fotos:
+                    photo_num = add_photo_grid(doc, fotos, fid, photo_counter_start=photo_num)
 
     # 8. Giros de Negocio
     cm = data.get("giros_negocio", {}).get("consultorio_medico", "").strip()
