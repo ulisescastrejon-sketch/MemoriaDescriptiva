@@ -109,15 +109,20 @@ def api_descargar(fid):
     return send_file(p,as_attachment=True,download_name=secure_filename(f"MEMORIA-{nombre}.docx"))
 
 # ---- Word generator helpers ----
-def add_heading(doc,text,level=1):
-    p=doc.add_paragraph(); p.paragraph_format.space_before=Pt(10); p.paragraph_format.space_after=Pt(4)
-    run=p.add_run(text.upper()); run.bold=True
-    sizes={1:13,2:11,3:10}; colors={1:RGBColor(0,56,107),2:RGBColor(0,112,192),3:RGBColor(64,64,64)}
-    run.font.size=Pt(sizes.get(level,10)); run.font.color.rgb=colors.get(level,RGBColor(0,0,0))
-def add_field(doc,label,value):
-    p=doc.add_paragraph(); p.paragraph_format.space_after=Pt(2)
-    r1=p.add_run(f"{label}: "); r1.bold=True; r1.font.size=Pt(10)
-    r2=p.add_run(str(value) if value else ""); r2.font.size=Pt(10)
+from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.oxml import parse_xml, OxmlElement
+from docx.oxml.ns import nsdecls, qn
+
+def set_cell_margins(cell, top=80, bottom=80, left=100, right=100):
+    tcPr = cell._tc.get_or_add_tcPr()
+    tcMar = OxmlElement('w:tcMar')
+    for m, val in [('w:top', top), ('w:bottom', bottom), ('w:left', left), ('w:right', right)]:
+        node = OxmlElement(m)
+        node.set(qn('w:w'), str(val))
+        node.set(qn('w:type'), 'dxa')
+        tcMar.append(node)
+    tcPr.append(tcMar)
+
 def resolve_img_path(url):
     if not url: return None
     clean = url.lstrip("/").replace("/", os.sep)
@@ -127,125 +132,401 @@ def resolve_img_path(url):
     if p2.exists(): return p2
     return None
 
-def add_photo_grid(doc,photos,fid):
-    if not photos: return
-    for i in range(0,len(photos),2):
-        pair=photos[i:i+2]
-        table=doc.add_table(rows=2,cols=len(pair)); table.style="Table Grid"
-        for ci,photo in enumerate(pair):
-            ic=table.cell(0,ci); dc=table.cell(1,ci)
-            url=photo.get("url","")
-            img_path=resolve_img_path(url)
-            if img_path and img_path.exists():
-                try:
-                    p=ic.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-                    p.add_run().add_picture(str(img_path),width=Inches(2.8))
-                except Exception as e:
-                    print("Error inserting picture:", e)
-                    ic.text="[Error al insertar imagen]"
-            else:
-                ic.text="[Imagen no disponible]"
-            dc.text=photo.get("descripcion","")
-        doc.add_paragraph()
-def add_subsection(doc,titulo,contenido,photos,fid):
-    add_heading(doc,titulo,2)
-    if contenido and contenido.strip():
-        p=doc.add_paragraph(contenido)
-        for r in p.runs: r.font.size=Pt(10)
-    add_photo_grid(doc,photos or [],fid)
+def add_banner(doc, text):
+    p = doc.add_paragraph()
+    p.paragraph_format.space_before = Pt(12)
+    p.paragraph_format.space_after = Pt(4)
+    shd = parse_xml(r'<w:shd {} w:fill="595959"/>'.format(nsdecls('w')))
+    p._p.get_or_add_pPr().append(shd)
+    r = p.add_run(f"  {text.upper()}  ")
+    r.font.name = 'Arial'
+    r.font.size = Pt(9.5)
+    r.font.bold = True
+    r.font.color.rgb = RGBColor(255, 255, 255)
+    return p
 
-def generar_word(data,fid):
-    doc=Document()
+def add_subtitle(doc, text):
+    p = doc.add_paragraph()
+    p.paragraph_format.space_before = Pt(6)
+    p.paragraph_format.space_after = Pt(2)
+    p.paragraph_format.line_spacing = 1.0
+    r = p.add_run(text)
+    r.font.name = 'Arial'
+    r.font.size = Pt(9.0)
+    r.font.bold = True
+    return p
+
+def add_body_p(doc, text, bold=False, space_after=2, align=WD_ALIGN_PARAGRAPH.JUSTIFY):
+    if not text or not str(text).strip(): return None
+    p = doc.add_paragraph()
+    p.alignment = align
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after = Pt(space_after)
+    p.paragraph_format.line_spacing = 1.0
+    r = p.add_run(str(text).strip())
+    r.font.name = 'Arial'
+    r.font.size = Pt(9.0)
+    r.bold = bold
+    return p
+
+def add_field(doc, label, value):
+    p = doc.add_paragraph()
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after = Pt(2)
+    p.paragraph_format.line_spacing = 1.0
+    r1 = p.add_run(f"{label}: ")
+    r1.font.name = 'Arial'
+    r1.font.size = Pt(9.0)
+    r1.bold = True
+    r2 = p.add_run(str(value) if value else "")
+    r2.font.name = 'Arial'
+    r2.font.size = Pt(9.0)
+    return p
+
+def add_photo_grid(doc, photos, fid, photo_counter_start=1):
+    if not photos: return photo_counter_start
+    photo_num = photo_counter_start
+    for i in range(0, len(photos), 2):
+        pair = photos[i:i+2]
+        table = doc.add_table(rows=2, cols=2)
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        table.autofit = False
+        
+        tblPr = table._tbl.tblPr
+        borders = parse_xml(
+            r'<w:tblBorders {} >'
+            r'  <w:top w:val="single" w:sz="6" w:space="0" w:color="000000"/>'
+            r'  <w:bottom w:val="single" w:sz="6" w:space="0" w:color="000000"/>'
+            r'  <w:left w:val="single" w:sz="6" w:space="0" w:color="000000"/>'
+            r'  <w:right w:val="single" w:sz="6" w:space="0" w:color="000000"/>'
+            r'  <w:insideH w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>'
+            r'  <w:insideV w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>'
+            r'</w:tblBorders>'.format(nsdecls('w'))
+        )
+        tblPr.append(borders)
+        
+        col_width = Cm(8.85)
+        for row in table.rows:
+            row.cells[0].width = col_width
+            row.cells[1].width = col_width
+        
+        for ci in range(2):
+            ic = table.cell(0, ci)
+            dc = table.cell(1, ci)
+            set_cell_margins(ic, 80, 80, 100, 100)
+            set_cell_margins(dc, 80, 80, 100, 100)
+            
+            if ci < len(pair):
+                photo = pair[ci]
+                url = photo.get("url", "")
+                img_path = resolve_img_path(url)
+                if img_path and img_path.exists():
+                    try:
+                        p = ic.paragraphs[0]
+                        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        p.paragraph_format.space_before = Pt(2)
+                        p.paragraph_format.space_after = Pt(2)
+                        p.add_run().add_picture(str(img_path), width=Inches(3.2))
+                    except Exception as e:
+                        print("Error inserting picture:", e)
+                        ic.text = "[Error al insertar imagen]"
+                else:
+                    ic.text = "[Imagen no disponible]"
+                
+                desc = photo.get("descripcion", "").strip()
+                p_desc = dc.paragraphs[0]
+                p_desc.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                p_desc.paragraph_format.space_before = Pt(2)
+                p_desc.paragraph_format.space_after = Pt(2)
+                
+                if not desc.upper().startswith("FOTO"):
+                    r_lbl = p_desc.add_run(f"FOTO {photo_num}. ")
+                    r_lbl.font.name = "Arial"
+                    r_lbl.font.size = Pt(9.0)
+                    r_lbl.font.bold = True
+                
+                if desc:
+                    r_txt = p_desc.add_run(desc)
+                    r_txt.font.name = "Arial"
+                    r_txt.font.size = Pt(9.0)
+                photo_num += 1
+            else:
+                ic.text = ""
+                dc.text = ""
+        
+        sp = doc.add_paragraph()
+        sp.paragraph_format.space_before = Pt(0)
+        sp.paragraph_format.space_after = Pt(4)
+        sp.paragraph_format.line_spacing = 1.0
+
+    return photo_num
+
+def generar_word(data, fid):
+    doc = Document()
     for s in doc.sections:
-        s.top_margin=Cm(2); s.bottom_margin=Cm(2); s.left_margin=Cm(2.5); s.right_margin=Cm(2.5)
-    hdr=doc.sections[0].header
-    hp=hdr.paragraphs[0] if hdr.paragraphs else hdr.add_paragraph()
-    hp.clear(); hp.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    hr=hp.add_run("MEMORIA DESCRIPTIVA"); hr.bold=True; hr.font.size=Pt(9); hr.font.color.rgb=RGBColor(128,128,128)
-    dg=data.get("datos_generales",{})
-    t=doc.add_paragraph(); t.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    tr=t.add_run(dg.get("nombre_tienda","MEMORIA DESCRIPTIVA").upper())
-    tr.bold=True; tr.font.size=Pt(16); tr.font.color.rgb=RGBColor(0,56,107)
-    doc.add_paragraph()
-    add_heading(doc,"Datos Generales")
-    for label,key in [("Tipo de Obra","tipo_obra"),("Calle","calle"),("Numero","numero"),("Colonia","colonia"),("Ciudad","ciudad"),("Estado","estado_rep"),("CP","cp"),("Sup. Construccion","sup_construccion"),("Sup. Remodelar","sup_remodelar"),("Sup. Total Predio","sup_total")]:
-        add_field(doc,label,dg.get(key,""))
-    doc.add_paragraph()
-    add_heading(doc,"Croquis de Localizacion")
-    cu=data.get("croquis",None)
+        s.top_margin = Cm(2.50)
+        s.bottom_margin = Cm(2.50)
+        s.left_margin = Cm(1.50)
+        s.right_margin = Cm(2.34)
+    
+    style_normal = doc.styles['Normal']
+    style_normal.font.name = 'Arial'
+    style_normal.font.size = Pt(9.0)
+    
+    # 1. Top Logo Walmart
+    logo_path = BASE_DIR / "static" / "img" / "walmart_logo.png"
+    if logo_path.exists():
+        lp = doc.add_paragraph()
+        lp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        lp.paragraph_format.space_before = Pt(0)
+        lp.paragraph_format.space_after = Pt(4)
+        lp.add_run().add_picture(str(logo_path), width=Inches(3.8))
+    
+    # 2. Store Title
+    dg = data.get("datos_generales", {})
+    tp = doc.add_paragraph()
+    tp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    tp.paragraph_format.space_before = Pt(4)
+    tp.paragraph_format.space_after = Pt(10)
+    store_name = dg.get("nombre_tienda", "").strip() or "MEMORIA DESCRIPTIVA"
+    if not store_name.upper().startswith("BODEGA") and not store_name.upper().startswith("WALMART") and not store_name.upper().startswith("SAM"):
+        title_text = f"BODEGA AURRERA “{store_name.upper()}”"
+    else:
+        title_text = store_name.upper()
+    r_title = tp.add_run(title_text)
+    r_title.font.name = "Arial"
+    r_title.font.size = Pt(9.5)
+    r_title.font.bold = True
+    r_title.font.color.rgb = RGBColor(0, 0, 255)
+
+    # 3. Section: Datos Generales
+    tipo_obra = dg.get("tipo_obra", "").strip() or "TRABAJOS DE REMODELACIÓN."
+    p_to = doc.add_paragraph()
+    p_to.paragraph_format.space_before = Pt(2)
+    p_to.paragraph_format.space_after = Pt(2)
+    r = p_to.add_run(f"TIPO DE OBRA:\t {tipo_obra.upper()}")
+    r.font.name = "Arial"
+    r.font.size = Pt(9.0)
+    r.font.bold = True
+
+    calle = dg.get("calle", "").strip()
+    num = dg.get("numero", "").strip()
+    col = dg.get("colonia", "").strip()
+    cd = dg.get("ciudad", "").strip()
+    edo = dg.get("estado_rep", "").strip()
+    cp = dg.get("cp", "").strip()
+
+    p_ub = doc.add_paragraph()
+    p_ub.paragraph_format.space_before = Pt(2)
+    p_ub.paragraph_format.space_after = Pt(2)
+    r1 = p_ub.add_run(f"UBICACIÓN: \t   Calle:       {calle} \tNo.         {num}")
+    r1.font.name = "Arial"
+    r1.font.size = Pt(9.0)
+    r1.font.bold = True
+
+    p_col = doc.add_paragraph()
+    p_col.paragraph_format.space_before = Pt(0)
+    p_col.paragraph_format.space_after = Pt(2)
+    r2 = p_col.add_run(f"   Colonia: {col}\t\tCiudad: {cd}")
+    r2.font.name = "Arial"
+    r2.font.size = Pt(9.0)
+    r2.font.bold = True
+
+    p_edo = doc.add_paragraph()
+    p_edo.paragraph_format.space_before = Pt(0)
+    p_edo.paragraph_format.space_after = Pt(4)
+    r3 = p_edo.add_run(f"   Estado:   {edo}\t\t\tCP.        {cp}")
+    r3.font.name = "Arial"
+    r3.font.size = Pt(9.0)
+    r3.font.bold = True
+
+    for label, key in [
+        ("SUPERFICIE DE CONSTRUCCIÓN", "sup_construccion"),
+        ("SUPERFICIE A REMODELAR", "sup_remodelar"),
+        ("SUPERFICIE TOTAL DEL PREDIO", "sup_total")
+    ]:
+        val = dg.get(key, "").strip()
+        p_sup = doc.add_paragraph()
+        p_sup.paragraph_format.space_before = Pt(0)
+        p_sup.paragraph_format.space_after = Pt(2)
+        r_lbl = p_sup.add_run(f"{label}: ----------------- ")
+        r_lbl.font.name = "Arial"
+        r_lbl.font.size = Pt(9.0)
+        r_lbl.font.bold = True
+        
+        val_text = f"{val} M2." if val and not val.upper().endswith("M2") and not val.upper().endswith("M2.") else (val or "")
+        r_val = p_sup.add_run(val_text)
+        r_val.font.name = "Arial"
+        r_val.font.size = Pt(9.0)
+
+    # 4. Croquis de Localización
+    p_cr = doc.add_paragraph()
+    p_cr.paragraph_format.space_before = Pt(4)
+    p_cr.paragraph_format.space_after = Pt(4)
+    r_cr = p_cr.add_run("CROQUIS DE LOCALIZACIÓN:")
+    r_cr.font.name = "Arial"
+    r_cr.font.size = Pt(9.0)
+    r_cr.font.bold = True
+
+    cu = data.get("croquis", None)
     if cu and cu.get("url"):
-        ip=resolve_img_path(cu["url"])
+        ip = resolve_img_path(cu["url"])
         if ip and ip.exists():
             try:
-                p=doc.add_paragraph(); p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-                p.add_run().add_picture(str(ip),width=Inches(4.5))
+                t_cr = doc.add_table(rows=1, cols=1)
+                t_cr.alignment = WD_TABLE_ALIGNMENT.CENTER
+                tblPr = t_cr._tbl.tblPr
+                borders = parse_xml(r'<w:tblBorders {} ><w:top w:val="single" w:sz="6" w:space="0" w:color="000000"/><w:bottom w:val="single" w:sz="6" w:space="0" w:color="000000"/><w:left w:val="single" w:sz="6" w:space="0" w:color="000000"/><w:right w:val="single" w:sz="6" w:space="0" w:color="000000"/></w:tblBorders>'.format(nsdecls('w')))
+                tblPr.append(borders)
+                cell_cr = t_cr.cell(0, 0)
+                cell_cr.width = Cm(17.7)
+                set_cell_margins(cell_cr, 80, 80, 80, 80)
+                p_c = cell_cr.paragraphs[0]
+                p_c.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                p_c.add_run().add_picture(str(ip), width=Inches(5.5))
             except Exception as e:
                 print("Error inserting croquis:", e)
-                doc.add_paragraph("[Croquis no disponible]")
+                add_body_p(doc, "[Croquis no disponible]")
         else:
-            doc.add_paragraph("[Croquis no disponible]")
-    doc.add_paragraph()
-    add_heading(doc,"Descripcion General")
-    dgen=data.get("descripcion_general",{})
+            add_body_p(doc, "[Croquis no disponible]")
+
+    # 5. Descripción General
+    add_banner(doc, "DESCRIPCIÓN GENERAL")
+    dgen = data.get("descripcion_general", {})
     if dgen.get("texto"):
-        p=doc.add_paragraph(dgen["texto"])
-        for r in p.runs: r.font.size=Pt(10)
-    for item in dgen.get("lista_items",[]):
+        add_body_p(doc, dgen["texto"], space_after=4)
+    for item in dgen.get("lista_items", []):
         if item and item.strip():
-            p=doc.add_paragraph(style="List Bullet"); p.add_run(item).font.size=Pt(10)
-    doc.add_paragraph()
-    add_heading(doc,"Descripcion Remodelacion Exterior")
-    ext=data.get("remodelacion_exterior",{})
-    for key,lbl in [("cubierta","Cubierta"),("estacionamiento","Estacionamiento"),("anuncio_espectacular","Anuncio Espectacular"),("fachadas","Fachadas"),("anden","Anden"),("area_servicio","Area de Servicio")]:
-        s=ext.get(key,{}); add_subsection(doc,lbl,s.get("texto",""),s.get("fotos",[]),fid)
-    doc.add_paragraph()
-    add_heading(doc,"Descripcion Remodelacion Interiores")
-    intr=data.get("remodelacion_interiores",{})
-    for key,lbl in [("portico_acceso","Portico de Acceso"),("oficinas_frontales","Oficinas Frontales"),("sanitarios_clientes","Sanitarios Clientes"),("piso_ventas","Piso de Ventas"),("area_perecederos","Area de Perecederos"),("comedor_asociados","Comedor de Asociados"),("oficinas_posteriores","Oficinas Posteriores"),("sanitarios_asociados","Sanitarios de Asociados"),("acceso_personal","Acceso de Personal"),("facturacion_sistemas","Facturacion y Sistemas"),("trastienda","Trastienda")]:
-        s=intr.get(key,{}); add_subsection(doc,lbl,s.get("texto",""),s.get("fotos",[]),fid)
-    doc.add_paragraph()
-    add_heading(doc,"Giros de Negocio"); add_heading(doc,"Consultorio Medico",2)
-    cm=data.get("giros_negocio",{}).get("consultorio_medico","")
+            p_it = doc.add_paragraph(style="List Bullet")
+            p_it.paragraph_format.space_before = Pt(0)
+            p_it.paragraph_format.space_after = Pt(2)
+            r_it = p_it.add_run(item.strip())
+            r_it.font.name = "Arial"
+            r_it.font.size = Pt(9.0)
+
+    photo_num = 1
+
+    # 6. Remodelación Exterior
+    add_banner(doc, "DESCRIPCIÓN REMODELACIÓN EXTERIOR:")
+    ext = data.get("remodelacion_exterior", {})
+    for key, lbl in [
+        ("cubierta", "Cubierta:"),
+        ("estacionamiento", "Estacionamiento:"),
+        ("anuncio_espectacular", "Anuncio Espectacular:"),
+        ("fachadas", "Fachadas:"),
+        ("anden", "Andén:"),
+        ("area_servicio", "Área de Servicio:")
+    ]:
+        s = ext.get(key, {})
+        txt = s.get("texto", "").strip()
+        fotos = s.get("fotos", [])
+        if txt or fotos:
+            add_subtitle(doc, lbl)
+            if txt:
+                add_body_p(doc, txt, space_after=4)
+            if fotos:
+                photo_num = add_photo_grid(doc, fotos, fid, photo_counter_start=photo_num)
+
+    # 7. Remodelación Interiores
+    add_banner(doc, "DESCRIPCIÓN REMODELACIÓN INTERIORES:")
+    intr = data.get("remodelacion_interiores", {})
+    for key, lbl in [
+        ("portico_acceso", "Pórtico de Acceso y Salida:"),
+        ("oficinas_frontales", "Oficinas Frontales:"),
+        ("sanitarios_clientes", "Sanitarios Clientes:"),
+        ("piso_ventas", "Piso de Ventas:"),
+        ("area_perecederos", "Área de Perecederos:"),
+        ("comedor_asociados", "Comedor de Asociados:"),
+        ("oficinas_posteriores", "Oficinas Posteriores:"),
+        ("sanitarios_asociados", "Sanitarios de Asociados:"),
+        ("acceso_personal", "Acceso de Personal y de Mercancía:"),
+        ("facturacion_sistemas", "Facturación y Sistemas:"),
+        ("trastienda", "Trastienda:")
+    ]:
+        s = intr.get(key, {})
+        txt = s.get("texto", "").strip()
+        fotos = s.get("fotos", [])
+        if txt or fotos:
+            add_subtitle(doc, lbl)
+            if txt:
+                add_body_p(doc, txt, space_after=4)
+            if fotos:
+                photo_num = add_photo_grid(doc, fotos, fid, photo_counter_start=photo_num)
+
+    # 8. Giros de Negocio
+    cm = data.get("giros_negocio", {}).get("consultorio_medico", "").strip()
     if cm:
-        p=doc.add_paragraph(cm)
-        for r in p.runs: r.font.size=Pt(10)
-    doc.add_paragraph()
-    add_heading(doc,"Descripcion de los Trabajos")
-    tr2=data.get("descripcion_trabajos",{})
-    if tr2.get("texto"):
-        p=doc.add_paragraph(tr2["texto"])
-        for r in p.runs: r.font.size=Pt(10)
-    if tr2.get("area_trabajo"): add_field(doc,"Area de Trabajo",tr2["area_trabajo"])
-    if tr2.get("afectacion_estructural"): add_field(doc,"Afectacion Estructural",tr2["afectacion_estructural"])
-    doc.add_paragraph()
-    add_heading(doc,"Estructura")
-    et=data.get("estructura",{}).get("texto","")
+        add_banner(doc, "GIROS DE NEGOCIO")
+        add_subtitle(doc, "CONSULTORIO MÉDICO:")
+        add_body_p(doc, cm, space_after=4)
+
+    # 9. Descripción de los Trabajos
+    tr2 = data.get("descripcion_trabajos", {})
+    t_tr = tr2.get("texto", "").strip()
+    t_area = tr2.get("area_trabajo", "").strip()
+    t_afect = tr2.get("afectacion_estructural", "").strip()
+    if t_tr or t_area or t_afect:
+        add_banner(doc, "DESCRIPCIÓN DE LOS TRABAJOS:")
+        if t_tr:
+            add_body_p(doc, t_tr, space_after=4)
+        if t_area:
+            add_field(doc, "Área de Trabajo", t_area)
+        if t_afect:
+            add_field(doc, "Afectación en Elementos Estructurales", t_afect)
+
+    # 10. Estructura
+    et = data.get("estructura", {}).get("texto", "").strip()
     if et:
-        p=doc.add_paragraph(et)
-        for r in p.runs: r.font.size=Pt(10)
-    doc.add_paragraph()
-    add_heading(doc,"Instalaciones")
-    inst=data.get("instalaciones",{})
-    for key,lbl in [("refrigeracion","Sistema de Refrigeracion"),("aire","Sistema de Aire"),("electrica","Instalacion Electrica"),("hidro_sanitaria","Instalacion Hidro-Sanitaria"),("gas","Instalacion de Gas"),("filtrado","Sistema de Filtrado"),("contra_incendio","Instalacion Contra Incendio")]:
-        t2=inst.get(key,"")
-        if t2 and t2.strip():
-            add_heading(doc,lbl,2)
-            p=doc.add_paragraph(t2)
-            for r in p.runs: r.font.size=Pt(10)
-    doc.add_paragraph()
-    add_heading(doc,"Medidas de Seguridad")
-    seg=data.get("medidas_seguridad",{})
-    for campo,lbl in [("texto",""),("medidas_clientes","Para Clientes y Asociados"),("consideraciones","Consideraciones Adicionales")]:
-        v=seg.get(campo,"")
-        if v and v.strip():
-            if lbl: add_heading(doc,lbl,3)
-            p=doc.add_paragraph(v)
-            for r in p.runs: r.font.size=Pt(10)
-    ftr=doc.sections[0].footer
-    fp2=ftr.paragraphs[0] if ftr.paragraphs else ftr.add_paragraph()
-    fp2.clear(); fp2.alignment=WD_ALIGN_PARAGRAPH.RIGHT
-    fr2=fp2.add_run(f"Generado el {datetime.now().strftime(chr(37)+chr(100)+chr(47)+chr(37)+chr(109)+chr(47)+chr(37)+chr(89)+chr(32)+chr(37)+chr(72)+chr(58)+chr(37)+chr(77))}"); fr2.font.size=Pt(8); fr2.font.color.rgb=RGBColor(128,128,128)
-    op=OUTPUT_DIR/f"MEMORIA-{fid[:8]}.docx"
+        add_banner(doc, "ESTRUCTURA")
+        add_body_p(doc, et, space_after=4)
+
+    # 11. Instalaciones
+    inst = data.get("instalaciones", {})
+    inst_items = [
+        ("refrigeracion", "Sistema de refrigeración:"),
+        ("aire", "Sistema de aire:"),
+        ("electrica", "Instalación Eléctrica:"),
+        ("hidro_sanitaria", "Instalación Hidro-Sanitaria:"),
+        ("gas", "Instalación de Gas:"),
+        ("filtrado", "Sistema de Filtrado:"),
+        ("contra_incendio", "Instalación Contra Incendio:")
+    ]
+    has_inst = any(inst.get(k, "").strip() for k, _ in inst_items)
+    if has_inst:
+        add_banner(doc, "INSTALACIONES")
+        for key, lbl in inst_items:
+            t_val = inst.get(key, "").strip()
+            if t_val:
+                add_subtitle(doc, lbl)
+                add_body_p(doc, t_val, space_after=4)
+
+    # 12. Medidas de Seguridad
+    seg = data.get("medidas_seguridad", {})
+    s_gen = seg.get("texto", "").strip()
+    s_cli = seg.get("medidas_clientes", "").strip()
+    s_cons = seg.get("consideraciones", "").strip()
+    if s_gen or s_cli or s_cons:
+        add_banner(doc, "MEDIDAS DE SEGURIDAD")
+        if s_gen:
+            add_body_p(doc, s_gen, space_after=4)
+        if s_cli:
+            add_subtitle(doc, "Medidas para Clientes y Asociados:")
+            add_body_p(doc, s_cli, space_after=4)
+        if s_cons:
+            add_subtitle(doc, "Consideraciones Adicionales:")
+            add_body_p(doc, s_cons, space_after=4)
+
+    # Footer
+    ftr = doc.sections[0].footer
+    fp2 = ftr.paragraphs[0] if ftr.paragraphs else ftr.add_paragraph()
+    fp2.clear()
+    fp2.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    fr2 = fp2.add_run(f"Memoria Descriptiva  |  Generado el {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    fr2.font.name = "Arial"
+    fr2.font.size = Pt(8.0)
+    fr2.font.color.rgb = RGBColor(128, 128, 128)
+
+    op = OUTPUT_DIR / f"MEMORIA-{fid[:8]}.docx"
     doc.save(str(op))
     return op
 
